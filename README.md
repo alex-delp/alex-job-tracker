@@ -2,18 +2,16 @@
 
 A modern .NET 10 Web API demonstrating clean architecture, background processing, and containerization.
 
-**Built by a developer with 10+ years of experience to showcase current .NET ecosystem knowledge.**
-
 ## What This Project Demonstrates
 
-- ✅ .NET 10 Minimal APIs
-- ✅ Entity Framework Core with PostgreSQL
-- ✅ Background job processing with hosted services
-- ✅ MassTransit for message-based architecture
-- ✅ Docker & Docker Compose
-- ✅ Clean Architecture principles
-- ✅ Repository pattern with Unit of Work
-- ✅ Structured logging with Serilog
+- .NET 10 Minimal APIs
+- Entity Framework Core with PostgreSQL
+- Background job processing with hosted services
+- MassTransit for message-based architecture
+- Docker & Docker Compose
+- Clean Architecture principles
+- Repository pattern with Unit of Work
+- Structured logging with Serilog
 
 ## The Domain
 
@@ -46,7 +44,9 @@ http://localhost:5000/swagger
 ```
 JobTracker/
 ├── src/
+│   ├── JobTracker.Domain/        # Entities, interfaces
 ├── tests/
+│   └── JobTracker.Tests/         # Unit tests
 ├── docker-compose.yml
 └── README.md
 ```
@@ -75,6 +75,20 @@ dotnet test
 cd src/JobTracker.Api
 dotnet run
 ```
+## Architecture
+
+```
+┌─────────────────┐     ┌──────────────────┐
+│   JobTracker    │────▶│   PostgreSQL     │
+│      API        │     └──────────────────┘
+└────────┬────────┘
+         │ publishes
+         ▼
+┌─────────────────┐     ┌──────────────────┐
+│   RabbitMQ      │────▶│  Reminder Worker │
+│   (messages)    │     │  (background)    │
+└─────────────────┘     └──────────────────┘
+```
 
 ## Why This Architecture?
 
@@ -83,10 +97,3 @@ dotnet run
 3. **Repository pattern**: Testable data access, not married to EF Core
 4. **Docker Compose**: Production-ready local development
 
-## Author
-
-Alex (Amirali) Delpisheh
-
-## License
-
-AGPLv3
