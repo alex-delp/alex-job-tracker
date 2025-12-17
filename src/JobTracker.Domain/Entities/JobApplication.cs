@@ -1,5 +1,11 @@
+using JobTracker.Domain.Policies;
+
 namespace JobTracker.Domain.Entities;
 
+/// <summary>
+/// Represents a job application with tracking capabilities for followups and status changes.
+/// Uses the Strategy pattern via <see cref="IFollowUpCalculator"/> to determine followup intervals.
+/// </summary>
 public class JobApplication
 {
     public Guid Id { get; private set; }
@@ -15,31 +21,49 @@ public class JobApplication
     public DateTime CreatedAt { get; private set; }
     public DateTime? LastModifiedAt { get; private set; }
 
+    // Parameterless constructor for ORM/serialization
     private JobApplication()
     {
     }
 
-    public static JobApplication Create(string companyName, string jobName, string jobDescription,
-        string? jobUrl = null, string? notes = null, int followUpInDays = 7)
+    /// <summary>
+    /// Creates a new job application with the specified details.
+    /// </summary>
+    /// <param name="companyName">The name of the company (required).</param>
+    /// <param name="jobName">The job title/position (required).</param>
+    /// <param name="jobDescription">Description of the job (required).</param>
+    /// <param name="followUpCalculator">Strategy for calculating follow-up dates based on job level.</param>
+    /// <param name="jobUrl">Optional URL to the job posting.</param>
+    /// <param name="notes">Optional notes about the application.</param>
+    /// <returns>A new <see cref="JobApplication"/> instance.</returns>
+    /// <exception cref="ArgumentException">Thrown when required fields are null or whitespace.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when calculated follow-up date is invalid.</exception>
+    public static JobApplication Create(
+        string companyName,
+        string jobName,
+        string jobDescription,
+        IFollowUpCalculator followUpCalculator,
+        string? jobUrl = null,
+        string? notes = null)
     {
         if (string.IsNullOrWhiteSpace(companyName))
-            throw new ArgumentException($"'{nameof(companyName)}' cannot be null or empty and it is required.",
-                nameof(companyName));
+            throw new ArgumentException($"'{nameof(companyName)}' cannot be null or empty.", nameof(companyName));
+
         if (string.IsNullOrWhiteSpace(jobName))
-            throw new ArgumentException($"'{nameof(jobName)}' cannot be null or empty and it is required.",
-                nameof(jobName));
-        if (string.IsNullOrWhiteSpace(jobName))
-            throw new ArgumentException($"'{nameof(jobName)}' cannot be null or empty and it is required.",
-                nameof(jobName));
+            throw new ArgumentException($"'{nameof(jobName)}' cannot be null or empty.", nameof(jobName));
+
         if (string.IsNullOrWhiteSpace(jobDescription))
-            throw new ArgumentException($"'{nameof(jobDescription)}' cannot be null or empty and it is required.",
-                nameof(jobDescription));
-        if (followUpInDays < 0)
-            throw new ArgumentOutOfRangeException($"'{nameof(followUpInDays)} must not be less than 0'",
-                nameof(followUpInDays));
+            throw new ArgumentException($"'{nameof(jobDescription)}' cannot be null or empty.", nameof(jobDescription));
 
+        var appliedAt = DateTime.UtcNow;
+        var nextFollowUpAt = followUpCalculator.CalculateNextFollowUp(appliedAt);
 
-        return new()
+        if (nextFollowUpAt < appliedAt)
+            throw new ArgumentOutOfRangeException(
+                nameof(followUpCalculator),
+                $"Calculated followup date ({nextFollowUpAt}) cannot be before application date ({appliedAt}).");
+
+        return new JobApplication
         {
             Id = Guid.NewGuid(),
             CompanyName = companyName.Trim(),
@@ -48,13 +72,16 @@ public class JobApplication
             JobUrl = jobUrl?.Trim(),
             Notes = notes?.Trim(),
             Status = ApplicationStatus.Applied,
-            AppliedAt = DateTime.UtcNow,
-            NextFollowUpAt = DateTime.UtcNow.AddDays(followUpInDays),
+            AppliedAt = appliedAt,
+            NextFollowUpAt = nextFollowUpAt,
             CreatedAt = DateTime.UtcNow,
         };
     }
 }
 
+/// <summary>
+/// Represents the current status of a job application in the hiring pipeline.
+/// </summary>
 public enum ApplicationStatus
 {
     Applied = 0,
